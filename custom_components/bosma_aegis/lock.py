@@ -23,6 +23,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .api import safe_error
 from .const import CONF_CONTROL_EVENTS, CONF_IFTTT_KEY, CONTROL_CONFIRM_TIMEOUT, DOMAIN, ifttt_url
 from .coordinator import BosmaCoordinator
 from .entity import BosmaEntity
@@ -139,5 +140,6 @@ class BosmaLock(BosmaEntity, LockEntity):
                 _LOGGER.debug("%s: IFTTT returned HTTP %s for '%s'", self._pid, resp.status, event)
                 return False
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
-            _LOGGER.debug("%s: IFTTT webhook error for '%s': %s", self._pid, event, err)
+            # The webhook URL contains the IFTTT key, so log only the error type/status, never its text.
+            _LOGGER.debug("%s: IFTTT webhook error for '%s': %s", self._pid, event, safe_error(err))
             return False

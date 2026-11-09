@@ -19,7 +19,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import BosmaApi, BosmaAuthError, BosmaConnectionError
+from .api import BosmaApi, BosmaAuthError, BosmaConnectionError, safe_error
 from .const import (
     ACTTYPE, CLOCK_SKEW, EVENT_ACTIVITY, FRESH_AVAILABILITY, LOCK_ACTS, NON_PERSON, RECENT_WINDOW,
     UNLOCK_ACTS, WS_URL,
@@ -221,7 +221,8 @@ class BosmaCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             except asyncio.CancelledError:
                 raise
             except Exception as err:  # noqa: BLE001 - keep the listener alive across any transient failure
-                _LOGGER.debug("websocket error: %s", err)
+                # Never log err's text: a rejected handshake (e.g. expired token) includes the token-bearing URL.
+                _LOGGER.debug("websocket error: %s", safe_error(err))
             self._ws_connected = False
             await asyncio.sleep(min(backoff, 60))
             backoff = min(backoff * 2, 60)

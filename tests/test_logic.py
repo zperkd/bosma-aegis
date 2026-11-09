@@ -214,4 +214,46 @@ assert ifttt_url("ABC123", "garage_door_lock") == \
     "https://maker.ifttt.com/trigger/garage_door_lock/with/key/ABC123"
 ok += 1
 
+# 15. safe_error never includes the exception text (aiohttp puts the request URL, with the token, in it)
+import logging  # noqa: E402
+from bosma_aegis.api import safe_error  # noqa: E402
+SECRET = "SECRETTOKEN123"
+class _HandshakeError(aiohttp.ClientResponseError):  # stands in for aiohttp.WSServerHandshakeError
+    def __init__(self, status):
+        super().__init__("401, message='Invalid response status', url='wss://x/ws?token=%s'" % SECRET)
+        self.status = status
+assert safe_error(_HandshakeError(401)) == "_HandshakeError (HTTP 401)", safe_error(_HandshakeError(401))
+assert safe_error(aiohttp.ClientError("Cannot connect url=wss://x?token=" + SECRET)) == "_E"
+assert safe_error(asyncio.TimeoutError()) == "TimeoutError"
+ok += 1
+
+# 16. a rejected websocket handshake (expired token) is logged without the token
+import bosma_aegis.coordinator as _coord_mod  # noqa: E402
+class _Session:
+    def ws_connect(self, url, **kw):
+        import base64
+        assert SECRET in base64.b64decode(url.split("token=", 1)[1]).decode()  # the token really is in the URL...
+        raise _HandshakeError(401)
+_coord_mod.async_get_clientsession = lambda hass: _Session()
+class _Capture(logging.Handler):
+    def __init__(self):
+        super().__init__(logging.DEBUG)
+        self.lines = []
+    def emit(self, record):
+        self.lines.append(record.getMessage())
+cap = _Capture()
+_coord_mod._LOGGER.addHandler(cap); _coord_mod._LOGGER.setLevel(logging.DEBUG)
+c = make(); c.api.token = SECRET
+async def _stop_login(*a, **k):
+    raise asyncio.CancelledError  # ends the reconnect loop after one failure
+c.api.async_login = _stop_login
+try:
+    run(c._ws_loop())
+except asyncio.CancelledError:
+    pass
+_coord_mod._LOGGER.removeHandler(cap)
+assert cap.lines == ["websocket error: _HandshakeError (HTTP 401)"], cap.lines  # ...but never in the log
+assert not any(SECRET in line for line in cap.lines)
+ok += 1
+
 print("ALL %d LOGIC TESTS PASSED" % ok)

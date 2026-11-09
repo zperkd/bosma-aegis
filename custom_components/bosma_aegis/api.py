@@ -38,6 +38,18 @@ class BosmaConnectionError(Exception):
     """A transport or unexpected-response error talking to the Bosma cloud."""
 
 
+def safe_error(err: BaseException) -> str:
+    """Describe a request error for logs/exceptions WITHOUT its message text.
+
+    aiohttp puts the full request URL in many exception messages (e.g. WSServerHandshakeError, InvalidURL), and our
+    URLs carry secrets: the Bosma token (websocket URL + REST query string) and the IFTTT key (webhook path). So only
+    the exception type and, when present, the HTTP status are ever reported.
+    """
+    status = getattr(err, "status", None)
+    name = type(err).__name__
+    return "%s (HTTP %s)" % (name, status) if isinstance(status, int) and status else name
+
+
 def _find_locks(payload: Any) -> list[dict[str, str]]:
     """Walk an arbitrary device-list response and pull out lock devices.
 
@@ -111,7 +123,7 @@ class BosmaApi:
                                               headers=dict(APP_HEADERS), timeout=_TIMEOUT) as resp:
                     body = await resp.json(content_type=None)
             except (aiohttp.ClientError, asyncio.TimeoutError) as err:
-                raise BosmaConnectionError(str(err)) from err
+                raise BosmaConnectionError(safe_error(err)) from None  # drop the cause: its text has the URL
             code = body.get("code") if isinstance(body, dict) else None
             if code == 514:
                 # New device: Bosma has emailed a verification code; the caller must retry with it.
@@ -135,7 +147,7 @@ class BosmaApi:
                                           timeout=_TIMEOUT) as resp:
                 body = await resp.json(content_type=None)
         except (aiohttp.ClientError, asyncio.TimeoutError) as err:
-            raise BosmaConnectionError(str(err)) from err
+            raise BosmaConnectionError(safe_error(err)) from None  # drop the cause: its text has the URL
         code = body.get("code") if isinstance(body, dict) else None
         # 0 = sent; 500 "You have just sent it" = a code was already sent moments ago (still in the inbox).
         if code not in (0, 500):
@@ -162,7 +174,7 @@ class BosmaApi:
             except aiohttp.ClientResponseError as err:
                 raise BosmaConnectionError("HTTP %s" % err.status) from err
             except (aiohttp.ClientError, asyncio.TimeoutError) as err:
-                raise BosmaConnectionError(str(err)) from err
+                raise BosmaConnectionError(safe_error(err)) from None  # drop the cause: its text has the URL
             if isinstance(body, dict) and (body.get("code") in (401, 507)
                                            or "expired" in str(body.get("msg", "")).lower()):
                 if attempt == 0:
