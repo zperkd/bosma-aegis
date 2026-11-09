@@ -1,0 +1,74 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Bosma Aegis",
+        "description": "Sign in with your Bosma app account. State (lock, battery, activity, door) is read live from Bosma. Lock/unlock control is OPTIONAL and added later under this integration's Configure → Lock control (IFTTT).",
+        "data": {
+          "account": "Email / account",
+          "password": "Password"
+        }
+      },
+      "verify": {
+        "title": "Verify this device",
+        "description": "Bosma requires a one-time verification for a new device. It just emailed a code to the address on account {account}. Enter that code to finish.",
+        "data": {
+          "verification_code": "Verification code"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate Bosma Aegis",
+        "description": "Your Bosma password changed or the session expired. Enter the current password.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Login failed. Check your Bosma account email and password.",
+      "cannot_connect": "Could not reach the Bosma cloud. Please try again.",
+      "no_devices": "Signed in, but no Bosma locks were found on this account.",
+      "invalid_code": "That verification code was not accepted. Check the code Bosma emailed and try again.",
+      "code_resent": "A new verification code was emailed. Enter the latest one."
+    },
+    "abort": {
+      "already_configured": "This Bosma account is already set up.",
+      "reauth_successful": "Re-authentication was successful."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Bosma Aegis options",
+        "menu_options": {
+          "settings": "Polling",
+          "control": "Lock control (IFTTT)"
+        }
+      },
+      "settings": {
+        "title": "Polling",
+        "data": {
+          "scan_interval": "Reconciliation poll interval (seconds)"
+        }
+      },
+      "control": {
+        "title": "Lock control via IFTTT",
+        "description": "Optional: give the integration real lock/unlock control by firing your IFTTT webhooks (Bosma offers Lock/Unlock as an IFTTT action). First create the applets and get your Webhooks key — see docs/CONTROL_VIA_IFTTT.md. Paste your key below; the event names are pre-filled to match the applet names the guide suggests. Leave the key blank to turn control off (read-only).",
+        "data": {
+          "ifttt_key": "IFTTT Webhooks key"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "lock_status": { "name": "Status" },
+      "battery": { "name": "Battery" },
+      "last_activity": { "name": "Last activity" }
+    },
+    "binary_sensor": {
+      "jammed": { "name": "Jammed" },
+      "door": { "name": "Door" }
+    }
+  }
+}
