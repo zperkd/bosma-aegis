@@ -134,6 +134,10 @@ logger:
 
 ## Notes & disclaimer
 
+- **Region: United States / Canada.** The integration talks to Bosma's North American cloud
+  (`smarthome.bosmaliving.com`), so it needs a Bosma account registered there. Accounts on other regional Bosma
+  servers aren't supported yet. If you're elsewhere and want to help add your region, please open an issue.
+
 - **Unofficial.** Not affiliated with, endorsed by, or supported by Bosma. "Bosma" and "Aegis" are trademarks of their
   owner. This integration uses the same cloud endpoints the Bosma app uses, for your own account and devices.
 - **Control is via IFTTT, not Bosma's API.** The integration never sends Bosma's own lock command; optional control
