@@ -1,13 +1,13 @@
 {
   "domain": "bosma_aegis",
   "name": "Bosma Aegis",
-  "version": "1.0.0",
+  "codeowners": ["@zperkd"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/zperkd/bosma-aegis",
   "integration_type": "hub",
   "iot_class": "cloud_push",
-  "config_flow": true,
-  "documentation": "https://github.com/zperkd/bosma-aegis",
   "issue_tracker": "https://github.com/zperkd/bosma-aegis/issues",
-  "codeowners": ["@zperkd"],
-  "dependencies": [],
-  "requirements": []
+  "requirements": [],
+  "version": "1.0.0"
 }
