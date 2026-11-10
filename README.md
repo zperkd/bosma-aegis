@@ -13,6 +13,12 @@ phone, Bluetooth adapter or separate bridge is needed. The Bosma gateway and int
 Choose **Read only** under Configure → Lock control to disable commands. Existing IFTTT settings remain
 available under the explicit **IFTTT (legacy)** option; native failures never trigger an IFTTT command.
 
+> ⚠️ **Native control is on by default, and this is a door lock.** Once installed (or upgraded from a read‑only
+> v1.0.x), each lock gets a controllable `lock.<name>` entity that can **physically unlock your door**. Anyone or
+> anything with access to Home Assistant — a dashboard, a voice assistant, an automation, or an attacker who reaches
+> your HA — can then unlock it. If you only want state and activity, set **Configure → Lock control → Read only**
+> before or right after setup. Treat your HA login, exposed dashboards, and any cloud/remote access accordingly.
+
 ---
 
 ## What you get
@@ -150,7 +156,10 @@ logger:
 
 Install v1.0.3 and restart Home Assistant. Lock entities appear automatically and existing lock entity IDs remain
 unchanged. The integration refreshes gateway metadata during setup; no re-pairing or phone is required.
-Native control becomes the default. To keep IFTTT, select IFTTT (legacy) in Configure → Lock control.
+
+**Heads‑up:** native control becomes the default, so if you were running read‑only, upgrading gives every lock a
+`lock.<name>` entity that can **unlock the door** — with no extra opt‑in. If that's not what you want, set
+**Configure → Lock control → Read only** after the upgrade. To keep using IFTTT, select **IFTTT (legacy)** there.
 
 ## License
 
