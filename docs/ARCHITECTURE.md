@@ -257,6 +257,28 @@ must remain in one session generation. An ambiguous POST failure is never retrie
 never falls back to IFTTT. Legacy webhook configuration is retained only as an explicitly selected alternative.
 No TUTK transport or BLE implementation is needed for this cloud path. See `crypto.py` and `api.py`.
 
+### Protocol constant verification
+
+The IV is shared by the inspected Bosma Android app, rather than provisioned per lock. Static analysis of
+version 2.5.2 build005's `libbosmaencrypt.so` confirms that
+`Java_com_bosma_encrypt_EncryptUtil_n_1getAegisLockKeyIV` loads the fixed literal `5beba2290a7fc515`
+from the library and returns it through JNI. The companion session-padding function similarly returns the
+fixed suffix `61622324`. Neither function takes a lock identifier or account key.
+
+Use the IV's **UTF-8 bytes**, matching the app; it is not hex-decoded. Account-specific `macKey` and the
+authorized per-lock key remain distinct from these public app constants. The synthetic Android reference
+vector in `tests/protocol_vector.json` verifies Python challenge-encryption parity. This establishes the
+constants for the inspected app version; other app/firmware variants have not been independently tested.
+
+### Startup metadata
+
+Setup refreshes device discovery to obtain current gateway routing metadata, including when upgrading an
+older entry that lacks it. An empty discovery result falls back to the entry's cached device list. A discovery
+transport error schedules setup retry, and an authentication failure starts reauthentication. Fresh cloud
+state is still required by the first coordinator refresh before entities become available. Cached discovery
+metadata is not used as a substitute for a fresh observation of lock state.
+
+
 ---
 
 ## 10. Limitations & honest caveats
