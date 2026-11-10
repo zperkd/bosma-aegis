@@ -1,151 +1,152 @@
 # Bosma Aegis for Home Assistant
 
-A Home Assistant integration that brings your **Bosma Aegis smart lock(s)** into HA with **instant updates** and
-**rich activity** â€” lock/unlock state, battery, door contact, jam, and *how* each change happened (keypad, app,
-fingerprint, autoâ€‘lock, by hand) with *who* did it.
+Control your Bosma Aegis locks from Home Assistant, with live lock status, battery, door contact and activity details.
 
-It runs **entirely inside Home Assistant** â€” no separate bridge, service, or addâ€‘on â€” and talks to the Bosma cloud the
-same way the Bosma app does (a persistent websocket for instant pushes, plus a periodic REST reconcile).
+Native cloud control runs inside Home Assistant. No IFTTT subscription, phone, Bluetooth adapter or separate bridge is required. Remote control requires a Bosma gateway and internet access.
 
-**Native lock control is included in v1.0.3.** Lock and unlock through Bosma's authenticated cloud API,
-with encrypted challenge-response and confirmation from the actual reported lock state. No IFTTT subscription,
-phone, Bluetooth adapter or separate bridge is needed. The Bosma gateway and internet are required.
-Choose **Read only** under Configure â†’ Lock control to disable commands. Existing IFTTT settings remain
-available under the explicit **IFTTT (legacy)** option; native failures never trigger an IFTTT command.
+> **Lock control is ON by default**, including when upgrading from a read-only version. Users and automations with permission to operate the lock entity can lock and unlock the door. For monitoring only, choose **Configure > Lock control > Read only** after setup.
 
-> **Native control is enabled by default, including on upgrade from a read-only version.** Each lock gets a
-> `lock.<name>` entity that can physically lock and unlock the door. Home Assistant users, integrations and
-> automations with permission to operate that entity can send these commands. For state and activity only,
-> choose **Configure â†’ Lock control â†’ Read only** after setup.
+## New in v1.0.4
 
----
+Optional door security alerts, configured entirely in the UI:
 
-## What you get
+- Separate ON/OFF switches for **Potential break-in** and **Door left ajar**.
+- Home Assistant notifications, phone notifications, or both.
+- An adjustable open-door timer, with fresh contact confirmation before an alert.
+- Duplicate suppression and automatic clearing of HA door-ajar notifications when the door closes.
 
-Per lock, a Home Assistant **device** with:
+**Alerts start OFF.** Enable the types and destinations you want under **Configure > Alerts**.
 
-| Entity | Example | Notes |
-| --- | --- | --- |
-| `sensor.<lock>_status` | `locked` / `unlocked` / `jammed` | enum sensor |
-| `sensor.<lock>_battery` | `100 %` | battery % |
-| `sensor.<lock>_last_activity` | `keypad_password_lock` | attributes: `who`, `act_type`, `person`, `correlated`, `attribution` |
-| `binary_sensor.<lock>_jammed` | `off` | problem class |
-| `binary_sensor.<lock>_door` | `closed` | only for locks with a door sensor |
-| `lock.<lock>` | `locked` / `unlocked` | native Bosma cloud control by default |
+[Read the v1.0.4 update notes](CHANGELOG.md) or [view the release](https://github.com/zperkd/bosma-aegis/releases/tag/v1.0.4).
 
-Plus a Home Assistant **event** on every live, correlated change:
+## Features
 
-```yaml
-event_type: bosma_aegis_activity
-data:
-  device_pid: "0123â€¦"
-  name: "Garage Door"
-  status: "locked"          # or "unlocked" / "jammed"
-  locked: true
-  act_name: "keypad_password_lock"
-  act_type: 135
-  who: "Alex"
-  person: true              # True only on a CONFIDENT human action; None if unconfirmed; False if automatic
-  correlated: true
-  event_id: "0123â€¦:1794187601"
-```
+- **Lock and unlock** through Bosma's native cloud API.
+- **Live status** with periodic cloud reconciliation.
+- **Battery, door contact and jam status**, when reported by the lock.
+- **Activity details:** how the lock was operated and who operated it, when available.
+- **Optional security alerts** for reported impacts and doors left ajar.
+- **Automation events** for activity and alerts.
 
-Use the event to drive automations that need to know a **person** acted â€” e.g. "turn the porch light off when someone
-locks the front door, but ignore the autoâ€‘lock." See the examples in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#using-the-activity-event).
+## Before you install
 
----
+- Home Assistant **2024.4 or newer**. Tested with **2026.11.1**.
+- A Bosma Aegis lock and gateway for remote operation.
+- An account on Bosma's **North American cloud** (US/Canada). Other regional servers are not supported; Canada has not been independently tested.
+- A dedicated Bosma account is recommended because signing in from another device can replace an existing session.
 
 ## Installation
 
-### 1. Add the repository to the Marketplace
+### 1. Prepare a dedicated Bosma account
 
-Home Assistant **2026.11+** ships the builtâ€‘in **Marketplace** (Settings â†’ **Marketplace**; it replaced HACS).
+1. Create a second account in the Bosma app for Home Assistant.
+2. From your main account, share the locks with that account.
+3. Keep your phone signed into your main account.
 
-1. **Settings â†’ Marketplace**.
-2. Topâ€‘right menu (â‹®) â†’ **Custom repositories**.
-3. Add `https://github.com/zperkd/bosma-aegis` with category **Integration**.
-4. Find **Bosma Aegis** in the list and **Download**.
-5. **Restart Home Assistant** (Settings â†’ System â†’ Restart).
+Using a separate account avoids Home Assistant and the phone app competing for the same session.
 
-> On older setups still using HACS, the same steps work (HACS â†’ â‹® â†’ Custom repositories â†’ Integration).
+### 2. Install the integration
 
-*Manual install (no Marketplace):* copy `custom_components/bosma_aegis/` into your HA `config/custom_components/`
-folder and restart.
+**Home Assistant 2026.11 and newer:** open **Settings > Marketplace**, search for **Bosma Aegis**, and follow the installation prompts.
 
-### 2. Create a dedicated Bosma account (recommended)
+**Older Home Assistant versions:** open **HACS**, search for **Bosma Aegis**, and download the integration. Restart Home Assistant when prompted.
 
-**Bosma allows only one device signed into an account at a time.** If Home Assistant signs into the same account as
-your phone (or another integration/bridge), they'll fight over the session. So:
+If it has not appeared in your catalog yet, add this repository as a custom integration repository:
 
-1. In the Bosma app, create a **second Bosma account** for Home Assistant.
-2. **Share your lock(s)** from your main account to that new account (Bosma app â†’ the lock â†’ Share).
-3. Use that dedicated account in the step below.
+[github.com/zperkd/bosma-aegis](https://github.com/zperkd/bosma-aegis)
 
-(You *can* use your main account, but then the Bosma app on your phone will keep getting logged out.)
+For a manual installation, copy the `custom_components/bosma_aegis` folder into Home Assistant's `config/custom_components` folder, then restart.
 
-### 3. Add the integration
+### 3. Sign in
 
-1. **Settings â†’ Devices & services â†’ Add integration â†’ "Bosma Aegis"**.
-2. Sign in with the **Bosma account** email + password.
-3. **Newâ€‘device verification:** the first time a given account signs in from Home Assistant, Bosma emails a oneâ€‘time
-   **verification code** (its "signing in from another device" security). The integration shows a **code entry**
-   step â€” enter the code from the email to finish. (Subsequent restarts don't ask again.)
-4. Your locks are discovered automatically; their entities appear under a device each.
+Marketplace may open setup automatically. Otherwise, open **Settings > Devices & services > Add integration** and choose **Bosma Aegis**.
 
-That's it â€” the lock states update **instantly** when anything changes, and reconcile every 60 s as a safety net.
+1. Sign in with the dedicated account.
+2. If Bosma emails a new-device verification code, enter it when prompted.
+3. Your locks and their entities are discovered automatically.
 
-**Options** (Settings â†’ the integration â†’ Configure):
-- **Polling** â€” the reconciliation **poll interval** (30â€“900 s; default 60).
-- **Lock control** â€” choose native Bosma cloud (default), Read only, or IFTTT (legacy). Existing entity IDs are preserved.
+## Configuration
 
----
+Open **Settings > Devices & services > Bosma Aegis > Configure**.
 
-## Door security alerts (v1.0.4)
+- **Polling:** set the reconciliation interval from 30 to 900 seconds. Default: 60 seconds.
+- **Lock control:** choose native Bosma cloud control, Read only, or IFTTT (legacy).
+- **Alerts:** enable each alert type and choose how it is delivered.
 
-Open **Configure → Alerts** to enable **Potential break-in** and/or **Door left ajar** alerts. Both are off by default.
-Choose persistent Home Assistant notifications, an existing phone/notify service, or both. The door-open delay is
-configurable from 10 to 3600 seconds (default 120). A door-ajar notification clears in HA when the door closes.
+Native control never falls back to IFTTT automatically. Existing IFTTT setups remain available through the explicit legacy option; see the [IFTTT guide](docs/CONTROL_VIA_IFTTT.md).
 
-Break-in warnings use Bosma's impact / potential door-breaking event (activity code 64), not normal unlocking or a
-jam. Enable break-in detection in the Bosma app for the lock to produce these events. A reported impact is a
-potential attempt, not proof of intrusion. Door-ajar alerts use Bosma's event 68 and the contact-open timer; the
-integration confirms a fresh door contact reading before sending a timer alert. Historical alarms are not replayed
-on startup; repeated impacts are limited to one notification per lock per minute, and an open door alerts once per
-continuous opening. Pushes prompt alarm checks, with the normal reconciliation poll as a fallback.
+## Door security alerts
 
-These options do not enable the lock's siren, change Bosma alarm sensitivity, or lock/unlock a door. They require
-cloud connectivity and a lock/gateway that reports the corresponding alarms or door contact. The
-`bosma_aegis_alert` event can also drive your own automations (`alert_type`: `break_in` or `door_ajar`).
+### Potential break-in
 
----
+Turn on **Potential break-in alerts** to receive Bosma's impact / potential door-breaking warnings.
 
-## How it works (short version)
+**Break-in detection must also be enabled in the Bosma app.** An impact warning indicates a potential attempt, not proof of an intrusion. Normal unlocking and lock jams do not trigger this alert.
 
-- On setup it logs into the Bosma cloud and **discovers your locks**.
-- A background **websocket** subscribes to your locks and receives `DEVICE_SHADOW` pushes the instant anything
-  changes (subâ€‘second).
-- A periodic **REST poll** reconciles state as a backstop, with **observationâ€‘time ordering** so a slow poll can
-  never overwrite a newer push.
-- On a live change it reads the **activity log** and attributes *how/who* â€” and marks `person: true` **only** when it
-  can *confidently* correlate a human action to that exact transition (a tight time window); otherwise the activity is
-  shown as history with `person: null`, so an ambiguous row never triggers a personâ€‘gated automation.
-- Entities go **unavailable** if neither the websocket nor the poll has seen a lock for ~11 minutes (a dead cloud
-  link surfaces instead of showing stale state).
+### Door left ajar
 
-The full design â€” ordering, attribution confidence, reconnection, availability â€” is in
-**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+Turn on **Door left ajar alerts** for device-reported ajar alarms and the Home Assistant open-door timer.
 
----
+Set **Door-open delay** from **10 to 3600 seconds**. Default: **120 seconds**. This delay applies to the Home Assistant timer; Bosma's own ajar alarms are delivered when reported.
+
+Before sending a timer alert, the integration requests a fresh door contact reading. It alerts once per continuous opening and clears the Home Assistant door-ajar notification when the door closes.
+
+### Notification delivery
+
+Choose either destination, or both:
+
+- **Home Assistant notifications:** enable the toggle for notifications in the HA frontend.
+- **Phone / notify service:** select an existing notification service, such as your phone's Companion App service.
+
+To use phone notifications only, select a phone service and turn off Home Assistant notifications. At least one destination is required when alerts are enabled.
+
+Old alarm history is not replayed at startup. Repeated impact notifications are limited to one per lock per minute. These options do not change the lock's siren or sensitivity and do not operate the lock.
+
+## Entities and automations
+
+Each discovered lock has entities for:
+
+- Lock control and state.
+- Battery level.
+- Last activity, including who/how details when available.
+- Jam status.
+- Door contact, if the device reports one.
+
+For automations, the integration provides:
+
+- `bosma_aegis_activity` for a correlated lock-state change.
+- `bosma_aegis_alert` for an enabled security alert.
+
+Activity attribution is a best-effort interpretation of Bosma's event log. Use the `person` and `correlated` fields when an automation must distinguish a person from auto-locking.
+
+[See the architecture and automation examples](docs/ARCHITECTURE.md#8-using-the-activity-event).
+
+## Updating
+
+Install the latest release through Marketplace or HACS, then restart Home Assistant.
+
+**Upgrading from v1.0.3:** native control and existing entity IDs are preserved. The new alerts remain OFF until you enable them.
+
+**Upgrading from v1.0.2 or a read-only setup:** native control is enabled by default. Choose **Configure > Lock control > Read only** if you want monitoring only, or **IFTTT (legacy)** to retain that control method.
+
+[Previous releases remain available for rollback](https://github.com/zperkd/bosma-aegis/releases).
 
 ## Troubleshooting
 
-- **"No Bosma locks were found"** â€” the account signed in, but discovery returned no lock devices. Make sure the
-  account owns/was shared the lock(s). Discovery is the most accountâ€‘specific part; open an issue with debug logs
-  (`logger:` â†’ `custom_components.bosma_aegis: debug`) and the deviceâ€‘list shape can be adjusted.
-- **Entities "unavailable"** â€” the cloud link is down (check internet / Bosma outage). It recovers automatically.
-- **Reâ€‘authentication prompt** â€” your Bosma password changed; reâ€‘enter it when HA asks.
+**No locks found:** check that the dedicated account owns the locks or has been granted access to them.
 
-Enable debug logging:
+**Entities unavailable:** check internet access, gateway connectivity and the Bosma cloud. The integration requires cloud access and has no local-only control path.
+
+**Sign-in or verification problems:** check the account credentials and emailed code. Use a dedicated account so the phone app does not replace HA's session.
+
+**No break-in alerts:** enable that alert in the integration and break-in detection in the Bosma app. Confirm that a notification destination is selected.
+
+**No phone notifications:** select an available notification service in **Configure > Alerts** and check that it works in Home Assistant.
+
+<details>
+<summary>Enable debug logging</summary>
+
+Add this to your Home Assistant configuration and reload the logging settings:
 
 ```yaml
 logger:
@@ -153,32 +154,16 @@ logger:
     custom_components.bosma_aegis: debug
 ```
 
----
+Review logs for personal information before sharing them in an issue. The integration redacts request error details that could expose tokens or webhook keys.
 
-## Notes & disclaimer
+</details>
 
-- **Region: United States / Canada.** The integration talks to Bosma's North American cloud
-  (`smarthome.bosmaliving.com`), so it needs a Bosma account registered there. Accounts on other regional Bosma
-  servers aren't supported yet. If you're elsewhere and want to help add your region, please open an issue.
+## Privacy and project status
 
-- **Unofficial.** Not affiliated with, endorsed by, or supported by Bosma. "Bosma" and "Aegis" are trademarks of their
-  owner. This integration uses the same cloud endpoints the Bosma app uses, for your own account and devices.
-- **Native cloud control** uses the account's authorized encrypted lock key and a fresh server challenge.
-  Keys are decoded in memory and are never logged or stored in entity attributes. HTTP success means accepted;
-  `locking`/`unlocking` clears only after a fresh state confirmation or a reported timeout. Commands are serialized
-  per lock, and uncertain network failures never cause an automatic command retry or IFTTT fallback.
-- Credentials are stored by Home Assistant in its config entry (as with every cloud integration) and are only sent to
-  Bosma's servers.
+Credentials are stored in Home Assistant's config entry and sent to Bosma's cloud for authentication. Account and lock keys used for native control are handled in memory and are not logged or exposed as entity attributes.
 
-## Upgrading from v1.0.2
-
-Install v1.0.3 and restart Home Assistant. Lock entities appear automatically and existing lock entity IDs remain
-unchanged. The integration refreshes gateway metadata during setup; no re-pairing or phone is required.
-
-**Headsâ€‘up:** native control becomes the default, so if you were running readâ€‘only, upgrading gives every lock a
-`lock.<name>` entity that can **unlock the door** â€” with no extra optâ€‘in. If that's not what you want, set
-**Configure â†’ Lock control â†’ Read only** after the upgrade. To keep using IFTTT, select **IFTTT (legacy)** there.
+This is an unofficial integration, not affiliated with or endorsed by Bosma. "Bosma" and "Aegis" belong to their respective owners.
 
 ## License
 
-MIT â€” see [LICENSE](LICENSE).
+[MIT](LICENSE).
