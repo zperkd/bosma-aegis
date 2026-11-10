@@ -116,9 +116,10 @@ class BosmaLock(BosmaEntity, LockEntity):
                     return
                 deadline = self.hass.loop.time() + CONTROL_CONFIRM_TIMEOUT
                 next_refresh = 0.0
+                # Finish confirming a dispatched command before releasing the serial lock,
+                # even if the user has queued the opposite direction. Otherwise a gateway
+                # can receive a relock while the earlier unlock is still in flight.
                 while self.hass.loop.time() < deadline:
-                    if self._op_seq != seq:
-                        return
                     if (self._obs.get("status") == target
                             and (self._obs.get("observed_at") or 0) >= started):
                         return

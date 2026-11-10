@@ -188,6 +188,29 @@ class LockTests(unittest.IsolatedAsyncioTestCase):
         await lock._run(1,'unlocked','')
         c.api.async_control.assert_not_awaited()
         self.assertEqual(lock._pending,'locked')
+    async def test_opposite_command_waits_for_physical_confirmation(self):
+        import time
+        lock,c=self.make();lock._pending='unlocked'
+        first_sent=asyncio.Event();allow_confirmation=asyncio.Event();second_sent=asyncio.Event()
+        calls=[]
+        async def control(device,*,unlock):
+            calls.append(unlock)
+            if unlock:first_sent.set()
+            else:second_sent.set()
+        async def refresh():
+            await allow_confirmation.wait()
+            c.data[DEVICE['devicePid']].update(status='unlocked' if calls[-1] else 'locked',observed_at=time.time())
+        c.api.async_control.side_effect=control;c.async_request_refresh.side_effect=refresh
+        first=asyncio.create_task(lock._run(1,'unlocked',''))
+        await first_sent.wait()
+        lock._op_seq=2;lock._pending='locked'
+        second=asyncio.create_task(lock._run(2,'locked',''))
+        await asyncio.sleep(.01)
+        self.assertFalse(second_sent.is_set())
+        allow_confirmation.set()
+        await asyncio.gather(first,second)
+        self.assertEqual(calls,[True,False]);self.assertIsNone(lock._pending)
+
     async def test_read_only_creates_no_control_entities(self):
         from unittest.mock import Mock
         added=Mock()

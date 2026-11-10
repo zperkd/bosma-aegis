@@ -72,7 +72,8 @@ def _find_locks(payload: Any) -> list[dict[str, str]]:
                 if not model or model.startswith(LOCK_MODEL_PREFIX):
                     name = (node.get("deviceName") or node.get("name") or node.get("nickName")
                             or node.get("deviceNickName") or "Bosma Lock")
-                    found[pid] = {"devicePid": pid, "deviceId": did, "name": str(name), "modelCode": model}
+                    found[pid] = {"devicePid": pid, "deviceId": did, "name": str(name), "modelCode": model,
+                                  "remotePid": str(node.get("hubMac") or node.get("lockPid") or "")}
             for value in node.values():
                 visit(value)
         elif isinstance(node, list):
