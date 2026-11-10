@@ -90,6 +90,9 @@ class BosmaAlerts:
             self._schedule_timer(pid, self.delay)
 
     def _schedule_timer(self, pid: str, delay: float) -> None:
+        previous = self._timers.pop(pid, None)
+        if previous:
+            previous()
         def elapsed(_now):
             self._timers.pop(pid, None)
             if not self._closed:
@@ -197,8 +200,9 @@ class BosmaAlerts:
                 _LOGGER.warning("Bosma alert phone notification service is unavailable")
                 return
             try:
-                await self.hass.services.async_call(domain, service, {"title": title, "message": message}, blocking=True)
-            except HomeAssistantError as err:
+                async with asyncio.timeout(20):
+                    await self.hass.services.async_call(domain, service, {"title": title, "message": message}, blocking=True)
+            except (HomeAssistantError, asyncio.TimeoutError) as err:
                 _LOGGER.warning("Bosma alert notification failed: %s", safe_error(err))
 
     async def async_shutdown(self) -> None:

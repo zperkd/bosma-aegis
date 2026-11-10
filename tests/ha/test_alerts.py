@@ -178,3 +178,21 @@ async def test_partial_door_push_starts_timer(hass,mock_api,notifications):
     coordinator._apply(PID,{'doorStatus':0},source='push',observed=time.time())
     assert alerts._doors[PID]=='open' and PID in alerts._timers
     notifications[0].assert_not_called()
+
+
+async def test_failed_initial_refresh_cleans_alert_timers(hass,mock_api,notifications):
+    from pytest_homeassistant.common import MockConfigEntry
+    from custom_components.bosma_aegis.alerts import BosmaAlerts
+    from .conftest import DATA
+    created=[]
+    def manager(*args):
+        value=BosmaAlerts(*args);created.append(value);return value
+    second=dict(DEVICE,devicePid='1123456789abcdef0123456789abcdef',deviceId='000000FEDCBA',name='Second Lock')
+    mock_api.async_discover_locks.return_value=[DEVICE,second]
+    mock_api.async_get_shadow.side_effect=[{'lockStatus':1,'doorStatus':0},BosmaConnectionError('synthetic')]
+    entry=MockConfigEntry(domain=DOMAIN,data=DATA.copy(),options={'alert_door_ajar':True})
+    entry.add_to_hass(hass)
+    with patch('custom_components.bosma_aegis.alerts.BosmaAlerts',side_effect=manager):
+        assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert created[0]._closed and not created[0]._timers
+    notifications[0].assert_not_called()

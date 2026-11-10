@@ -34,7 +34,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     from .alerts import BosmaAlerts
 
     coordinator.alerts = BosmaAlerts(hass, entry, coordinator)
-    await coordinator.async_config_entry_first_refresh()
+    try:
+        await coordinator.async_config_entry_first_refresh()
+    except BaseException:
+        # A later device can fail after an earlier open-door report started a timer.
+        await coordinator.async_shutdown()
+        raise
     coordinator.start()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
