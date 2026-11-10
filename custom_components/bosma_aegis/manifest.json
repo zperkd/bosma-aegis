@@ -1,7 +1,9 @@
 {
   "domain": "bosma_aegis",
   "name": "Bosma Aegis",
-  "codeowners": ["@zperkd"],
+  "codeowners": [
+    "@zperkd"
+  ],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/zperkd/bosma-aegis",
@@ -9,5 +11,5 @@
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/zperkd/bosma-aegis/issues",
   "requirements": [],
-  "version": "1.0.2"
+  "version": "1.0.3"
 }

@@ -7,11 +7,11 @@ fingerprint, auto‑lock, by hand) with *who* did it.
 It runs **entirely inside Home Assistant** — no separate bridge, service, or add‑on — and talks to the Bosma cloud the
 same way the Bosma app does (a persistent websocket for instant pushes, plus a periodic REST reconcile).
 
-> **Read by default; control is optional.** The integration can't send Bosma's *own* lock/unlock command (it's an
-> encrypted, gateway‑relayed BLE challenge/response that can't be reproduced from the cloud API). But Bosma exposes
-> lock/unlock as an **IFTTT action**, so you can turn on real `lock.*` control by pasting your IFTTT Webhooks key in
-> the integration's options — it fires the webhook and **confirms** the result from its own instant state. No YAML.
-> See **[docs/CONTROL_VIA_IFTTT.md](docs/CONTROL_VIA_IFTTT.md)**. Leave the key blank to stay fully read‑only.
+**Native lock control is included in v1.0.3.** Lock and unlock through Bosma's authenticated cloud API,
+with encrypted challenge-response and confirmation from the actual reported lock state. No IFTTT subscription,
+phone, Bluetooth adapter or separate bridge is needed. The Bosma gateway and internet are required.
+Choose **Read only** under Configure → Lock control to disable commands. Existing IFTTT settings remain
+available under the explicit **IFTTT (legacy)** option; native failures never trigger an IFTTT command.
 
 ---
 
@@ -26,7 +26,7 @@ Per lock, a Home Assistant **device** with:
 | `sensor.<lock>_last_activity` | `keypad_password_lock` | attributes: `who`, `act_type`, `person`, `correlated`, `attribution` |
 | `binary_sensor.<lock>_jammed` | `off` | problem class |
 | `binary_sensor.<lock>_door` | `closed` | only for locks with a door sensor |
-| `lock.<lock>` | `locked` / `unlocked` | **optional** — appears only after you configure IFTTT control (below) |
+| `lock.<lock>` | `locked` / `unlocked` | native Bosma cloud control by default |
 
 Plus a Home Assistant **event** on every live, correlated change:
 
@@ -91,8 +91,7 @@ That's it — the lock states update **instantly** when anything changes, and re
 
 **Options** (Settings → the integration → Configure):
 - **Polling** — the reconciliation **poll interval** (30–900 s; default 60).
-- **Lock control (IFTTT)** — optionally add real `lock.*` control by pasting your IFTTT Webhooks key. See
-  [docs/CONTROL_VIA_IFTTT.md](docs/CONTROL_VIA_IFTTT.md).
+- **Lock control** — choose native Bosma cloud (default), Read only, or IFTTT (legacy). Existing entity IDs are preserved.
 
 ---
 
@@ -140,11 +139,18 @@ logger:
 
 - **Unofficial.** Not affiliated with, endorsed by, or supported by Bosma. "Bosma" and "Aegis" are trademarks of their
   owner. This integration uses the same cloud endpoints the Bosma app uses, for your own account and devices.
-- **Control is via IFTTT, not Bosma's API.** The integration never sends Bosma's own lock command; optional control
-  works by firing *your* IFTTT webhook (which runs Bosma's IFTTT action) and confirming the result from the read side.
-  See [docs/CONTROL_VIA_IFTTT.md](docs/CONTROL_VIA_IFTTT.md). The Webhooks key is stored with the config entry.
+- **Native cloud control** uses the account's authorized encrypted lock key and a fresh server challenge.
+  Keys are decoded in memory and are never logged or stored in entity attributes. HTTP success means accepted;
+  `locking`/`unlocking` clears only after a fresh state confirmation or a reported timeout. Commands are serialized
+  per lock, and uncertain network failures never cause an automatic command retry or IFTTT fallback.
 - Credentials are stored by Home Assistant in its config entry (as with every cloud integration) and are only sent to
   Bosma's servers.
+
+## Upgrading from v1.0.2
+
+Install v1.0.3 and restart Home Assistant. Lock entities appear automatically and existing lock entity IDs remain
+unchanged. The integration refreshes gateway metadata during setup; no re-pairing or phone is required.
+Native control becomes the default. To keep IFTTT, select IFTTT (legacy) in Configure → Lock control.
 
 ## License
 

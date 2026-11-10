@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Bosma Aegis",
-        "description": "Sign in with your Bosma app account. State (lock, battery, activity, door) is read live from Bosma. Lock/unlock control is OPTIONAL and added later under this integration's Configure → Lock control (IFTTT).",
+        "description": "Sign in with a dedicated Bosma account. Lock/unlock, battery, door and activity update live. Native Bosma cloud control is included; no phone or IFTTT required.",
         "data": {
           "account": "Email / account",
           "password": "Password"
@@ -42,7 +42,7 @@
         "title": "Bosma Aegis options",
         "menu_options": {
           "settings": "Polling",
-          "control": "Lock control (IFTTT)"
+          "control": "Lock control"
         }
       },
       "settings": {
@@ -52,8 +52,15 @@
         }
       },
       "control": {
-        "title": "Lock control via IFTTT",
-        "description": "Optional: give the integration real lock/unlock control by firing your IFTTT webhooks (Bosma offers Lock/Unlock as an IFTTT action). First create the applets and get your Webhooks key — see docs/CONTROL_VIA_IFTTT.md. Paste your key below; the event names are pre-filled to match the applet names the guide suggests. Leave the key blank to turn control off (read-only).",
+        "title": "Lock control",
+        "description": "Native Bosma cloud control is the default and requires the lock gateway and internet. Choose Read only to disable commands, or IFTTT (legacy) to use your existing webhook configuration. Native failures never trigger IFTTT automatically.",
+        "data": {
+          "control_mode": "Control method"
+        }
+      },
+      "ifttt": {
+        "title": "IFTTT (legacy)",
+        "description": "Use your existing IFTTT Webhooks key and per-lock event names. See docs/CONTROL_VIA_IFTTT.md. Native mode does not use these settings.",
         "data": {
           "ifttt_key": "IFTTT Webhooks key"
         }
@@ -62,13 +69,23 @@
   },
   "entity": {
     "sensor": {
-      "lock_status": { "name": "Status" },
-      "battery": { "name": "Battery" },
-      "last_activity": { "name": "Last activity" }
+      "lock_status": {
+        "name": "Status"
+      },
+      "battery": {
+        "name": "Battery"
+      },
+      "last_activity": {
+        "name": "Last activity"
+      }
     },
     "binary_sensor": {
-      "jammed": { "name": "Jammed" },
-      "door": { "name": "Door" }
+      "jammed": {
+        "name": "Jammed"
+      },
+      "door": {
+        "name": "Door"
+      }
     }
   }
 }

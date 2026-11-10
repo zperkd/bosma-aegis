@@ -1,4 +1,4 @@
-"""Constants for the Bosma Aegis (read-only) integration."""
+"""Constants for the Bosma Aegis integration."""
 
 from __future__ import annotations
 
@@ -11,6 +11,10 @@ CONF_PASSWORD = "password"
 CONF_IMEI = "imei"
 CONF_SCAN_INTERVAL = "scan_interval"
 # Optional lock control via IFTTT (opt-in, configured in the options flow):
+CONF_CONTROL_MODE = "control_mode"
+CONTROL_NATIVE = "native"
+CONTROL_IFTTT = "ifttt"
+CONTROL_READ_ONLY = "read_only"
 CONF_IFTTT_KEY = "ifttt_key"          # the user's IFTTT Webhooks key (enables control when set)
 CONF_CONTROL_EVENTS = "control_events"  # resolved {devicePid: {"lock": <event>, "unlock": <event>}}
 
@@ -25,7 +29,7 @@ def ifttt_url(key: str, event: str) -> str:
     """Build the IFTTT Maker webhook URL for an event (pure helper, unit-tested)."""
     return IFTTT_WEBHOOK_URL.format(event=event, key=key)
 
-# Bosma cloud (the same endpoints the mobile app uses; read-only here)
+# Bosma cloud (the same endpoints the mobile app uses)
 GLOBAL_BASE = "https://smarthome.bosmaliving.com/bosma-smart-global"
 FRONTEND_BASE = "https://smarthome.bosmaliving.com/bosma-smart-frontend"
 WS_URL = "wss://smarthome.bosmaliving.com/bosma-smart-websocket/ws?token="

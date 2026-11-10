@@ -1,8 +1,4 @@
-"""Async, read-only client for the Bosma cloud (the endpoints the mobile app uses).
-
-Only reads: login, device discovery, lock shadow (state/battery/door) and the activity log. No control endpoints
-are implemented here on purpose -- control stays external (see docs/CONTROL_VIA_IFTTT.md).
-"""
+"""Async client for Bosma cloud discovery, live state and native lock control."""
 
 from __future__ import annotations
 
@@ -14,6 +10,7 @@ from typing import Any
 import aiohttp
 
 from .const import APP_HEADERS, FRONTEND_BASE, GLOBAL_BASE
+from .crypto import decode_offline_key, encrypt_challenge
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,7 +84,7 @@ def _find_locks(payload: Any) -> list[dict[str, str]]:
 
 
 class BosmaApi:
-    """Minimal async Bosma reader. One instance per config entry."""
+    """Async Bosma cloud client. One instance per config entry."""
 
     def __init__(self, session: aiohttp.ClientSession, account: str, password: str, imei: str) -> None:
         self._session = session
@@ -97,6 +94,8 @@ class BosmaApi:
         self._token: str | None = None
         self._generation = 0
         self._login_lock = asyncio.Lock()
+        self._mac_key: str | None = None
+        self._control_locks: dict[str, asyncio.Lock] = {}
 
     @property
     def token(self) -> str | None:
@@ -135,6 +134,7 @@ class BosmaApi:
             if not token:
                 raise BosmaAuthError("no token in login response")
             self._token = token
+            self._mac_key = (body.get("data") or {}).get("macKey")
             self._generation += 1
             _LOGGER.debug("Bosma login ok (generation %s)", self._generation)
             return token
@@ -172,7 +172,7 @@ class BosmaApi:
                     resp.raise_for_status()
                     body = await resp.json(content_type=None)
             except aiohttp.ClientResponseError as err:
-                raise BosmaConnectionError("HTTP %s" % err.status) from err
+                raise BosmaConnectionError("HTTP %s" % err.status) from None
             except (aiohttp.ClientError, asyncio.TimeoutError) as err:
                 raise BosmaConnectionError(safe_error(err)) from None  # drop the cause: its text has the URL
             if isinstance(body, dict) and (body.get("code") in (401, 507)
@@ -182,6 +182,79 @@ class BosmaApi:
                     continue
                 raise BosmaAuthError("token still expired after re-login")
             return body if isinstance(body, dict) else {}
+
+    async def _post(self, path: str, params: dict[str, str], *, retry_auth: bool = True) -> dict:
+        """Authenticated form POST. Never retry a physical command after transport failure."""
+        if self._token is None:
+            await self.async_login()
+        for attempt in range(2 if retry_auth else 1):
+            generation = self._generation
+            headers = dict(APP_HEADERS, token=self._token or "")
+            headers["Domain-Name"] = "user_domain"
+            try:
+                async with self._session.post(
+                    FRONTEND_BASE + path, data=dict(params, token=self._token or ""),
+                    headers=headers, timeout=_TIMEOUT,
+                ) as resp:
+                    if resp.status == 401:
+                        if retry_auth and attempt == 0:
+                            await self.async_login(expected_generation=generation)
+                            continue
+                        raise BosmaAuthError("Control authentication expired")
+                    resp.raise_for_status()
+                    body = await resp.json(content_type=None)
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as err:
+                raise BosmaConnectionError(safe_error(err)) from None
+            if not isinstance(body, dict):
+                raise BosmaConnectionError("Invalid control response")
+            code = body.get("code")
+            if code in (401, 507):
+                if retry_auth and attempt == 0:
+                    await self.async_login(expected_generation=generation)
+                    continue
+                raise BosmaAuthError("Control authentication expired")
+            if code != 0:
+                # Never include server messages: they may echo a token or encrypted key.
+                numeric_code = code if type(code) is int else "unknown"
+                raise BosmaConnectionError("Bosma control rejected (code %s)" % numeric_code)
+            return body
+        raise BosmaAuthError("Control authentication expired")
+
+    async def async_control(self, device: dict[str, str], *, unlock: bool) -> None:
+        """Submit an explicit lock/unlock command; caller must verify observed state.
+
+        Provision the key using this account's authorization, then obtain a fresh challenge.
+        All account and lock key material stays in memory. A rejected/uncertain command is
+        never silently retried or routed to IFTTT.
+        """
+        pid = device["devicePid"]
+        async with self._control_locks.setdefault(pid, asyncio.Lock()):
+            key_body = await self._post("/api/lock/getOfflineKey", {
+                "devicePid": pid, "deviceId": device["deviceId"],
+            })
+            data = key_body.get("data")
+            if not isinstance(data, dict) or not self._mac_key:
+                raise BosmaConnectionError("Bosma did not provide control credentials")
+            try:
+                key = decode_offline_key(data.get("offlineKey") or data.get("key"), self._mac_key)
+            except (ValueError, TypeError):
+                raise BosmaConnectionError("Could not decode Bosma control credentials") from None
+            generation = self._generation
+            challenge_body = await self._post("/api/lock/remoteUnlockBefore", {"devicePid": pid}, retry_auth=False)
+            challenge = challenge_body.get("data")
+            if not isinstance(challenge, dict):
+                raise BosmaConnectionError("Missing Bosma control challenge")
+            try:
+                response = encrypt_challenge(challenge.get("rnd"), key)
+            except (ValueError, TypeError):
+                raise BosmaConnectionError("Invalid Bosma control challenge") from None
+            if generation != self._generation:
+                raise BosmaConnectionError("Bosma session changed during control; try again")
+            await self._post("/api/lock/remoteUnlock", {
+                "devicePid": pid,
+                "dbPid": device.get("remotePid") or device.get("hubMac") or device.get("lockPid") or "",
+                "rndEn": response, "isUnlock": "1" if unlock else "0",
+            }, retry_auth=False)
 
     async def async_discover_locks(self) -> list[dict[str, str]]:
         """Return the account's lock devices: [{deviceId, devicePid, name, modelCode}].
@@ -205,7 +278,8 @@ class BosmaApi:
                 model = str(dev.get("modelCode") or "")
                 if isinstance(pid, str) and isinstance(did, str) and model.startswith(LOCK_MODEL_PREFIX):
                     name = dev.get("deviceName") or dev.get("name") or dev.get("nickName") or "Bosma Lock"
-                    locks[pid] = {"devicePid": pid, "deviceId": did, "name": str(name).strip(), "modelCode": model}
+                    locks[pid] = {"devicePid": pid, "deviceId": did, "name": str(name).strip(), "modelCode": model,
+                                  "remotePid": str(dev.get("hubMac") or dev.get("lockPid") or "")}
             if not locks:  # defensive: tolerate an unexpected shape by walking the response
                 for found in _find_locks(devices):
                     locks.setdefault(found["devicePid"], found)

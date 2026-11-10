@@ -1,10 +1,11 @@
+> **Legacy option (v1.0.3):** Native Bosma cloud control is now the default and does not require IFTTT.
+> To use the setup below, explicitly select **IFTTT (legacy)** in Configure → Lock control.
+
 # Controlling your Bosma locks from Home Assistant (via IFTTT)
 
-The [Bosma Aegis integration](../README.md) reads your locks directly from Bosma (instant state, battery, activity),
-but it **can't send Bosma's own lock/unlock command** — that's an encrypted, gateway‑relayed BLE exchange
-(see [ARCHITECTURE.md §9](ARCHITECTURE.md#9-why-control-goes-through-ifttt-not-bosmas-api)). Bosma **does** expose lock/unlock as an **IFTTT action**,
-though, so the integration can control your locks by firing an IFTTT webhook and then **confirming** the result from
-its own instant push.
+The [Bosma Aegis integration](../README.md) supports native Bosma cloud control from v1.0.3 onward.
+This guide documents the optional legacy IFTTT path for users who want to keep existing applets.
+It fires an IFTTT webhook and confirms the result from the integration's observed state.
 
 There are two ways to wire this up:
 
@@ -65,7 +66,7 @@ That's it. The new lock entities:
 - are available exactly when the lock's `sensor.<lock>_status` is.
 
 To **turn control back off**, open the same step and clear the Webhooks key — the `lock.*` entities disappear and the
-integration is read‑only again.
+legacy lock entities are omitted. Select Read only in the control-method selector to disable all control.
 
 > **Security.** The Webhooks key grants control of your locks. It's stored with the config entry (like any other
 > integration credential) and shown masked. Don't share screenshots of the options form with the key visible.

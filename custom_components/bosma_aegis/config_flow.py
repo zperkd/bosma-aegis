@@ -1,4 +1,4 @@
-"""Config flow for Bosma Aegis (read-only), including Bosma's new-device email verification (code 514)."""
+"""Config flow for Bosma Aegis with native control, including Bosma's new-device email verification (code 514)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,8 @@ from homeassistant.util import slugify
 
 from .api import BosmaApi, BosmaAuthError, BosmaConnectionError, BosmaVerificationRequired
 from .const import (
-    CONF_ACCOUNT, CONF_CONTROL_EVENTS, CONF_IFTTT_KEY, CONF_IMEI, CONF_PASSWORD, CONF_SCAN_INTERVAL,
+    CONF_ACCOUNT, CONF_CONTROL_EVENTS, CONF_CONTROL_MODE, CONF_IFTTT_KEY, CONF_IMEI, CONF_PASSWORD, CONF_SCAN_INTERVAL,
+    CONTROL_NATIVE, CONTROL_IFTTT, CONTROL_READ_ONLY,
     DEFAULT_SCAN_INTERVAL, DOMAIN,
 )
 
@@ -129,7 +130,7 @@ class BosmaConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class BosmaOptionsFlow(OptionsFlow):
-    """Options: polling interval and (optional) IFTTT lock control."""
+    """Options: polling interval, native/read-only control and legacy IFTTT."""
 
     def __init__(self, entry: ConfigEntry) -> None:
         self._entry = entry
@@ -160,6 +161,18 @@ class BosmaOptionsFlow(OptionsFlow):
             vol.Optional(CONF_SCAN_INTERVAL, default=current): vol.All(int, vol.Range(min=30, max=900))}))
 
     async def async_step_control(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Choose native, read-only, or the explicit legacy webhook path."""
+        if user_input is not None:
+            if user_input[CONF_CONTROL_MODE] == CONTROL_IFTTT:
+                return await self.async_step_ifttt()
+            return self._save({CONF_CONTROL_MODE: user_input[CONF_CONTROL_MODE]})
+        return self.async_show_form(step_id="control", data_schema=vol.Schema({
+            vol.Required(CONF_CONTROL_MODE, default=self._entry.options.get(CONF_CONTROL_MODE, CONTROL_NATIVE)):
+                vol.In({CONTROL_NATIVE: "Bosma cloud (native)", CONTROL_READ_ONLY: "Read only",
+                        CONTROL_IFTTT: "IFTTT (legacy)"}),
+        }))
+
+    async def async_step_ifttt(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Optional lock/unlock control via IFTTT webhooks (see docs/CONTROL_VIA_IFTTT.md)."""
         slugs = self._slug_map()
         existing = self._entry.options.get(CONF_CONTROL_EVENTS) or {}
@@ -172,7 +185,8 @@ class BosmaOptionsFlow(OptionsFlow):
                 unlock_ev = (user_input.get(f"{slug}_unlock_event") or "").strip()
                 if lock_ev and unlock_ev:
                     events[info["pid"]] = {"lock": lock_ev, "unlock": unlock_ev}
-            return self._save({CONF_IFTTT_KEY: key, CONF_CONTROL_EVENTS: events})
+            return self._save({CONF_CONTROL_MODE: CONTROL_IFTTT,
+                               CONF_IFTTT_KEY: key, CONF_CONTROL_EVENTS: events})
 
         schema: dict[Any, Any] = {
             vol.Optional(CONF_IFTTT_KEY,
@@ -184,4 +198,4 @@ class BosmaOptionsFlow(OptionsFlow):
                                 default=cur.get("lock", f"{slug}_lock"))] = str
             schema[vol.Optional(f"{slug}_unlock_event",
                                 default=cur.get("unlock", f"{slug}_unlock"))] = str
-        return self.async_show_form(step_id="control", data_schema=vol.Schema(schema))
+        return self.async_show_form(step_id="ifttt", data_schema=vol.Schema(schema))

@@ -1,0 +1,7 @@
+{
+  "iv": "5beba2290a7fc515",
+  "session_padding": "61622324",
+  "synthetic_key": "000102030405060708090a0b0c0d0e0f",
+  "synthetic_challenge": "00112233445566778899aabbccddeeff",
+  "synthetic_response": "6F69EDB1A47785911952F4453AF795016DD0E7EE1DFDE3012BDA82E8585401B4"
+}

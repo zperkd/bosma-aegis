@@ -44,7 +44,8 @@ class _Coord:
 _mod("homeassistant")
 _mod("homeassistant.config_entries", ConfigEntry=object)
 _mod("homeassistant.core", HomeAssistant=object, callback=lambda f: f)
-_mod("homeassistant.exceptions", ConfigEntryAuthFailed=type("ConfigEntryAuthFailed", (Exception,), {}))
+_mod("homeassistant.exceptions", ConfigEntryAuthFailed=type("ConfigEntryAuthFailed", (Exception,), {}),
+     ConfigEntryNotReady=type("ConfigEntryNotReady", (Exception,), {}))
 _mod("homeassistant.helpers")
 _mod("homeassistant.helpers.aiohttp_client", async_get_clientsession=lambda hass: None)
 _mod("homeassistant.helpers.update_coordinator",

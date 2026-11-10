@@ -1,20 +1,10 @@
-"""Optional lock control for Bosma Aegis via IFTTT.
-
-The integration itself cannot send Bosma's encrypted, gateway-relayed BLE lock/unlock command (see
-docs/ARCHITECTURE.md §9). But Bosma exposes lock/unlock as an IFTTT action, so when the user configures their
-IFTTT Webhooks key + event names in the options flow, we expose real `lock.*` entities that:
-
-  * show state straight from the read-only integration (instant websocket pushes), and
-  * control by firing the user's IFTTT webhook, then WAIT for the integration to confirm the deadbolt actually
-    moved before clearing the transient locking/unlocking state (never trust "webhook sent" == "lock moved").
-
-With no key configured, no lock entities are created and the integration stays fully read-only.
-"""
+"""Bosma native cloud lock control with observed-state confirmation and legacy IFTTT."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import time
 
 import aiohttp
 from homeassistant.components.lock import LockEntity
@@ -23,8 +13,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .api import safe_error
-from .const import CONF_CONTROL_EVENTS, CONF_IFTTT_KEY, CONTROL_CONFIRM_TIMEOUT, DOMAIN, ifttt_url
+from .api import BosmaAuthError, BosmaConnectionError, safe_error
+from .const import (CONF_CONTROL_EVENTS, CONF_CONTROL_MODE, CONF_IFTTT_KEY, CONTROL_CONFIRM_TIMEOUT,
+    CONTROL_NATIVE, CONTROL_IFTTT, CONTROL_READ_ONLY, DOMAIN, ifttt_url)
 from .coordinator import BosmaCoordinator
 from .entity import BosmaEntity
 
@@ -34,30 +25,35 @@ _WEBHOOK_TIMEOUT = aiohttp.ClientTimeout(total=15)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry,
                             async_add_entities: AddEntitiesCallback) -> None:
-    """Create a controllable lock per device that has an IFTTT key + event names configured."""
+    """Create native lock entities, or the explicitly selected legacy IFTTT entities."""
     key = (entry.options.get(CONF_IFTTT_KEY) or "").strip()
     events = entry.options.get(CONF_CONTROL_EVENTS) or {}
-    if not key:
-        return  # control not configured -> stay read-only (sensors only)
+    mode = entry.options.get(CONF_CONTROL_MODE, CONTROL_NATIVE)
+    if mode == CONTROL_READ_ONLY:
+        return
     coordinator: BosmaCoordinator = hass.data[DOMAIN][entry.entry_id]
     session = async_get_clientsession(hass)
     entities: list[LockEntity] = []
     for device in coordinator.devices:
         ev = events.get(device["devicePid"]) or {}
-        if ev.get("lock") and ev.get("unlock"):
-            entities.append(BosmaLock(coordinator, device, session, key, ev["lock"], ev["unlock"]))
+        if mode == CONTROL_NATIVE or (mode == CONTROL_IFTTT and key and ev.get("lock") and ev.get("unlock")):
+            entities.append(BosmaLock(coordinator, device, session, key, ev.get("lock", ""), ev.get("unlock", ""), mode))
     async_add_entities(entities)
 
 
 class BosmaLock(BosmaEntity, LockEntity):
-    """A lock whose STATE is the read-only integration and whose CONTROL is the user's IFTTT webhook."""
+    """Native cloud control with existing state/entity identities preserved."""
 
     _attr_name = None  # the entity's name is just the device name (it's the primary control of the device)
 
     def __init__(self, coordinator: BosmaCoordinator, device: dict[str, str],
-                 session: aiohttp.ClientSession, key: str, lock_event: str, unlock_event: str) -> None:
+                 session: aiohttp.ClientSession, key: str, lock_event: str, unlock_event: str,
+                 mode: str = CONTROL_NATIVE) -> None:
         super().__init__(coordinator, device)
         self._attr_unique_id = f"{self._pid}_lock"
+        self._device = device
+        self._mode = mode
+        self._dispatch_lock = asyncio.Lock()
         self._session = session
         self._key = key
         self._lock_event = lock_event
@@ -103,31 +99,42 @@ class BosmaLock(BosmaEntity, LockEntity):
         seq = self._op_seq
         self._pending = target
         self.async_write_ha_state()
-        self.hass.async_create_background_task(
-            self._run(seq, target, event), name=f"bosma_aegis_{self._pid}_{target}")
+        self.coordinator.entry.async_create_background_task(
+            self.hass, self._run(seq, target, event), name=f"bosma_aegis_{self._pid}_{target}")
 
     async def _run(self, seq: int, target: str, event: str) -> None:
-        """Fire the IFTTT webhook, then wait (in the background) for the integration to confirm `target`.
-
-        `seq` identifies this command; if a newer one supersedes it, this task bows out without touching state.
-        """
+        """Serialize dispatch, then confirm a fresh observation of the actual deadbolt."""
         try:
-            if not await self._fire(event):
-                if self._op_seq == seq:
-                    _LOGGER.warning("%s: IFTTT webhook '%s' failed; lock state unchanged", self._pid, event)
-                return
-            # Wait for the integration (push or poll) to confirm the deadbolt actually moved.
-            deadline = self.hass.loop.time() + CONTROL_CONFIRM_TIMEOUT
-            while self.hass.loop.time() < deadline:
+            async with self._dispatch_lock:
                 if self._op_seq != seq:
-                    return  # a newer command took over; leave its transient state alone
-                if self._obs.get("status") == target:
                     return
-                await asyncio.sleep(0.5)
-            _LOGGER.warning("%s: sent '%s' but lock still reports %r after %ss",
-                            self._pid, event, self._obs.get("status"), CONTROL_CONFIRM_TIMEOUT)
+                started = time.time()
+                if self._mode == CONTROL_NATIVE:
+                    await self.coordinator.api.async_control(self._device, unlock=target == "unlocked")
+                elif not await self._fire(event):
+                    _LOGGER.warning("%s: IFTTT control failed", self._pid)
+                    return
+                deadline = self.hass.loop.time() + CONTROL_CONFIRM_TIMEOUT
+                next_refresh = 0.0
+                while self.hass.loop.time() < deadline:
+                    if self._op_seq != seq:
+                        return
+                    if (self._obs.get("status") == target
+                            and (self._obs.get("observed_at") or 0) >= started):
+                        return
+                    # Reconcile promptly if a push is missed; never equate accepted POST with success.
+                    if self.hass.loop.time() >= next_refresh:
+                        await self.coordinator.async_request_refresh()
+                        next_refresh = self.hass.loop.time() + 3
+                    await asyncio.sleep(0.5)
+                _LOGGER.warning("%s: control not confirmed after %ss", self._pid, CONTROL_CONFIRM_TIMEOUT)
+        except BosmaAuthError:
+            self.coordinator.entry.async_start_reauth(self.hass)
+            _LOGGER.warning("Bosma control needs re-authentication")
+        except (BosmaConnectionError, aiohttp.ClientError, asyncio.TimeoutError) as err:
+            _LOGGER.warning("Bosma control failed: %s", safe_error(err))
         finally:
-            if self._op_seq == seq:  # only the latest command clears the transient state
+            if self._op_seq == seq:
                 self._pending = None
                 self.async_write_ha_state()
 

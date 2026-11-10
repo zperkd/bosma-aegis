@@ -1,12 +1,13 @@
-"""The Bosma Aegis (read-only) integration."""
+"""The Bosma Aegis integration."""
 
 from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import BosmaApi
+from .api import BosmaApi, BosmaAuthError, BosmaConnectionError
 from .const import (
     CONF_ACCOUNT, CONF_IMEI, CONF_PASSWORD, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN, PLATFORMS,
 )
@@ -18,8 +19,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     session = async_get_clientsession(hass)
     api = BosmaApi(session, entry.data[CONF_ACCOUNT], entry.data[CONF_PASSWORD],
                    entry.data.get(CONF_IMEI, "ha-bosma-aegis"))
+    # Refresh device metadata for pre-1.0.3 entries (remote gateway metadata is needed for native control).
+    try:
+        devices = await api.async_discover_locks()
+    except BosmaAuthError as err:
+        raise ConfigEntryAuthFailed(str(err)) from None
+    except BosmaConnectionError as err:
+        raise ConfigEntryNotReady(str(err)) from None
+    if not devices:
+        devices = entry.data["devices"]
     scan = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
-    coordinator = BosmaCoordinator(hass, entry, api, entry.data["devices"], scan)
+    coordinator = BosmaCoordinator(hass, entry, api, devices, scan)
 
     await coordinator.async_config_entry_first_refresh()
     coordinator.start()

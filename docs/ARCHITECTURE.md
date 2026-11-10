@@ -12,7 +12,7 @@ reconnection) that make it reliable.
 - [6. Authentication & reconnection](#6-authentication--reconnection)
 - [7. Entities and the event](#7-entities-and-the-event)
 - [8. Using the activity event](#8-using-the-activity-event)
-- [9. Why control goes through IFTTT (not Bosma's API)](#9-why-control-goes-through-ifttt-not-bosmas-api)
+- [9. Native Bosma cloud control](#9-native-bosma-cloud-control-v103)
 - [10. Limitations & honest caveats](#10-limitations--honest-caveats)
 
 ---
@@ -186,15 +186,13 @@ Per lock (one HA **device**, grouped by `devicePid`):
 | `sensor.<lock>_last_activity` | action name | `who`, `act_type`, `person`, `correlated`, `attribution` |
 | `binary_sensor.<lock>_jammed` | on = jammed | — |
 | `binary_sensor.<lock>_door` | on = open | only if the lock has a door sensor |
-| `lock.<lock>` | `locked`/`unlocked`/`locking`/`unlocking`/`jammed` | **only when IFTTT control is configured** |
+| `lock.<lock>` | `locked`/`unlocked`/`locking`/`unlocking`/`jammed` | native cloud control by default |
 
 And the **`bosma_aegis_activity`** event (see the README for its schema) fires on each live, correlated change.
 
-By default there is **no `lock.` entity** — the integration can't send Bosma's native command, and a dead lock entity
-is misleading. When the user opts into IFTTT control (Configure → Lock control), the `lock` platform creates one
-`lock.<lock>` per configured lock: its **state** comes straight from `sensor.<lock>_status` (the read side), and its
-`async_lock`/`async_unlock` fire the user's IFTTT webhook, then **poll the read side for up to 90 s** to confirm the
-deadbolt actually moved — showing `locking`/`unlocking` until it does (see §9).
+The `lock` platform creates one lock entity per device by default. State comes from the coordinator;
+commands use the authenticated REST challenge-response flow described in §9. Read-only mode omits control
+entities. Legacy IFTTT mode uses the existing configured webhooks. Entity unique IDs are preserved.
 
 ---
 
@@ -239,19 +237,25 @@ and any uncorrelated activity (`person: null`) won't turn the light off.
 
 ---
 
-## 9. Why control goes through IFTTT (not Bosma's API)
+## 9. Native Bosma cloud control (v1.0.3)
 
-Reading is a clean cloud‑API problem. **Reproducing Bosma's own control command is not.** Bosma lock/unlock is a
-stateful, encrypted BLE challenge/response (nonce exchange → session key derived from the pairing key → AES), relayed
-through the lock's gateway over a licensed peer‑to‑peer transport. There is no standalone cloud "unlock" the integration
-can call without the pairing secrets and that transport — so it never tries to.
+The Android app exposes a working REST control flow, verified on an Aegis lock and gateway:
 
-Instead, control is delegated to a path Bosma *does* sanction: **Bosma's own IFTTT action.** When you connect the Bosma
-service to IFTTT and create lock/unlock applets, IFTTT (as a Bosma partner) issues the real command on your behalf. The
-integration just **fires the webhook that triggers your applet**, and then confirms the outcome from the read side. So
-the integration itself still sends no Bosma command — it pushes a button you own, and trusts only the state it reads
-back. This keeps control **opt‑in and honest** (no fake success: a `lock.*` that doesn't confirm is reported as such).
-Setup is in [CONTROL_VIA_IFTTT.md](CONTROL_VIA_IFTTT.md).
+1. Login provides an account-specific `macKey`. `POST api/lock/getOfflineKey` with the authorized device identifiers
+   returns the encrypted `offlineKey`.
+2. Decode the base64 ciphertext and decrypt with AES-CBC/PKCS7, using the app's shared session suffix and IV.
+   Account and device key material stays in memory.
+3. `POST api/lock/remoteUnlockBefore` yields a fresh random challenge. Encrypt its hex-decoded bytes with the
+   decoded lock key (AES-CBC/PKCS7), and uppercase-hex encode the response.
+4. `POST api/lock/remoteUnlock` submits `devicePid`, `dbPid`, `rndEn`, `isUnlock` and the token. `dbPid` follows the
+   app's `hubMac`, falling back to `lockPid`; `gatewayPid` is a different identifier and must not replace it.
+   `isUnlock=1` unlocks and `isUnlock=0` locks.
+5. Accepted is not completed: confirm a fresh observed lock state via websocket or reconciliation for up to 90 s.
+
+Serialize commands per lock. Auth recovery is permitted for key retrieval; the challenge and physical command
+must remain in one session generation. An ambiguous POST failure is never retried automatically. Native mode
+never falls back to IFTTT. Legacy webhook configuration is retained only as an explicitly selected alternative.
+No TUTK transport or BLE implementation is needed for this cloud path. See `crypto.py` and `api.py`.
 
 ---
 
