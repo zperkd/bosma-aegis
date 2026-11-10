@@ -9,6 +9,7 @@ from collections import OrderedDict
 from typing import Any
 
 from homeassistant.components import persistent_notification
+from homeassistant.core import callback
 from homeassistant.helpers.event import async_call_later
 from homeassistant.exceptions import HomeAssistantError
 
@@ -93,6 +94,7 @@ class BosmaAlerts:
         previous = self._timers.pop(pid, None)
         if previous:
             previous()
+        @callback
         def elapsed(_now):
             self._timers.pop(pid, None)
             if not self._closed:

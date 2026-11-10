@@ -196,3 +196,28 @@ async def test_failed_initial_refresh_cleans_alert_timers(hass,mock_api,notifica
         assert not await hass.config_entries.async_setup(entry.entry_id)
     assert created[0]._closed and not created[0]._timers
     notifications[0].assert_not_called()
+
+
+async def test_real_timer_callback_runs_on_ha_loop(hass,mock_api,notifications):
+    entry,alerts=await make(hass,mock_api,{'alert_door_ajar':True})
+    alerts.delay=.01
+    mock_api.async_get_shadow.return_value={'doorStatus':0,'lockStatus':1}
+    fired=asyncio.Event()
+    notifications[0].side_effect=lambda *args,**kwargs:fired.set()
+    alerts.observe(PID,0,time.time())
+    await asyncio.wait_for(fired.wait(),timeout=2)
+    await flush(hass)
+    notifications[0].assert_called_once()
+
+async def test_each_alert_ui_toggle_is_independent(hass,mock_api):
+    entry,alerts=await make(hass,mock_api)
+    for break_in,ajar in [(True,False),(False,True),(False,False)]:
+        flow=await hass.config_entries.options.async_init(entry.entry_id)
+        form=await hass.config_entries.options.async_configure(flow['flow_id'],{'next_step_id':'alerts'})
+        result=await hass.config_entries.options.async_configure(form['flow_id'],{
+            'alert_break_in':break_in,'alert_door_ajar':ajar,'alert_ajar_delay':120,
+            'alert_persistent':True,'alert_notify_service':''})
+        assert result['type']=='create_entry'
+        await flush(hass)
+        active=hass.data[DOMAIN][entry.entry_id].alerts
+        assert active.break_in is break_in and active.door_ajar is ajar
