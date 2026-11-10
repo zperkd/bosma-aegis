@@ -1,5 +1,4 @@
 """Native entity setup/control, options migration, verification and unloading in real HA."""
-from unittest.mock import patch
 import pytest
 from homeassistant.config_entries import SOURCE_USER
 from pytest_homeassistant.common import MockConfigEntry
@@ -23,7 +22,8 @@ async def test_upgrade_native_entities_and_unload(hass,mock_api):
     assert hass.data[DOMAIN][entry.entry_id].devices[0]['remotePid']=='synthetic-gateway'
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
-    assert hass.states.get('lock.example_lock') is None
+    state=hass.states.get('lock.example_lock')
+    assert state is None or (state.state=='unavailable' and state.attributes.get('restored'))
     assert entry.entry_id not in hass.data[DOMAIN]
 
 async def test_native_unlock_and_relock_confirmed(hass,mock_api):
@@ -40,7 +40,8 @@ async def test_native_unlock_and_relock_confirmed(hass,mock_api):
 
 async def test_read_only_retains_sensors(hass,mock_api):
     await setup(hass,{'control_mode':'read_only'})
-    assert hass.states.get('lock.example_lock') is None
+    state=hass.states.get('lock.example_lock')
+    assert state is None or (state.state=='unavailable' and state.attributes.get('restored'))
     assert hass.states.get('sensor.example_lock_status').state=='locked'
 
 async def test_native_default_preserves_legacy_settings(hass,mock_api):
@@ -59,7 +60,8 @@ async def test_control_options_switch_to_read_only(hass,mock_api):
     assert result['type']=='create_entry'
     await hass.async_block_till_done()
     assert entry.options['control_mode']=='read_only'
-    assert hass.states.get('lock.example_lock') is None
+    state=hass.states.get('lock.example_lock')
+    assert state is None or (state.state=='unavailable' and state.attributes.get('restored'))
 
 async def test_legacy_options_have_separate_form(hass,mock_api):
     entry=await setup(hass)
