@@ -16,6 +16,8 @@ from .const import (
     CONF_ACCOUNT, CONF_CONTROL_EVENTS, CONF_CONTROL_MODE, CONF_IFTTT_KEY, CONF_IMEI, CONF_PASSWORD, CONF_SCAN_INTERVAL,
     CONTROL_NATIVE, CONTROL_IFTTT, CONTROL_READ_ONLY,
     DEFAULT_SCAN_INTERVAL, DOMAIN,
+    CONF_ALERT_BREAK_IN, CONF_ALERT_DOOR_AJAR, CONF_ALERT_AJAR_DELAY, CONF_ALERT_PERSISTENT,
+    CONF_ALERT_NOTIFY_SERVICE, DEFAULT_AJAR_DELAY,
 )
 
 USER_SCHEMA = vol.Schema({vol.Required(CONF_ACCOUNT): str, vol.Required(CONF_PASSWORD): str})
@@ -151,7 +153,7 @@ class BosmaOptionsFlow(OptionsFlow):
         return out
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        return self.async_show_menu(step_id="init", menu_options=["settings", "control"])
+        return self.async_show_menu(step_id="init", menu_options=["settings", "control", "alerts"])
 
     async def async_step_settings(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
@@ -199,3 +201,33 @@ class BosmaOptionsFlow(OptionsFlow):
             schema[vol.Optional(f"{slug}_unlock_event",
                                 default=cur.get("unlock", f"{slug}_unlock"))] = str
         return self.async_show_form(step_id="ifttt", data_schema=vol.Schema(schema))
+
+
+    async def async_step_alerts(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Opt-in HA and/or phone alerts; the device's own alarm settings are untouched."""
+        errors = {}
+        choices = {"": "None (Home Assistant only)"}
+        for service in self.hass.services.async_services().get("notify", {}):
+            if service not in ("send_message", "persistent_notification"):
+                choices["notify." + service] = "notify." + service
+        existing = self._entry.options.get(CONF_ALERT_NOTIFY_SERVICE, "")
+        if existing and existing not in choices:
+            choices[existing] = existing + " (unavailable)"
+        values = {**self._entry.options, **(user_input or {})}
+        if user_input is not None:
+            enabled = user_input[CONF_ALERT_BREAK_IN] or user_input[CONF_ALERT_DOOR_AJAR]
+            selected = user_input.get(CONF_ALERT_NOTIFY_SERVICE, "")
+            if enabled and not user_input[CONF_ALERT_PERSISTENT] and not selected:
+                errors["base"] = "no_alert_destination"
+            elif selected and not self.hass.services.has_service("notify", selected.partition(".")[2]):
+                errors["base"] = "notify_unavailable"
+            else:
+                return self._save(user_input)
+        return self.async_show_form(step_id="alerts", errors=errors, data_schema=vol.Schema({
+            vol.Required(CONF_ALERT_BREAK_IN, default=values.get(CONF_ALERT_BREAK_IN, False)): bool,
+            vol.Required(CONF_ALERT_DOOR_AJAR, default=values.get(CONF_ALERT_DOOR_AJAR, False)): bool,
+            vol.Required(CONF_ALERT_AJAR_DELAY, default=values.get(CONF_ALERT_AJAR_DELAY, DEFAULT_AJAR_DELAY)):
+                vol.All(int, vol.Range(min=10, max=3600)),
+            vol.Required(CONF_ALERT_PERSISTENT, default=values.get(CONF_ALERT_PERSISTENT, True)): bool,
+            vol.Optional(CONF_ALERT_NOTIFY_SERVICE, default=values.get(CONF_ALERT_NOTIFY_SERVICE, "")): vol.In(choices),
+        }))

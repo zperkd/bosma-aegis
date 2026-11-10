@@ -5,11 +5,13 @@
     "@zperkd"
   ],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": [
+    "persistent_notification"
+  ],
   "documentation": "https://github.com/zperkd/bosma-aegis",
   "integration_type": "hub",
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/zperkd/bosma-aegis/issues",
   "requirements": [],
-  "version": "1.0.3"
+  "version": "1.0.4"
 }

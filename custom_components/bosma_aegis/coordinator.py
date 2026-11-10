@@ -56,6 +56,7 @@ class BosmaCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         self._last_ev_ts: dict[str, float] = {}  # per-lock last consumed activity timestamp (log has no row id)
         self._ws_task: asyncio.Task | None = None
         self._ws_connected = False
+        self.alerts = None
         # seed a blank observation per device so entities exist before the first read
         self.data = {d["devicePid"]: {"status": None, "battery": None, "door": None,
                                       "observed_at": None, "activity": None} for d in devices}
@@ -68,6 +69,8 @@ class BosmaCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                 self.hass, self._ws_loop(), "bosma_aegis_ws")
 
     async def async_shutdown(self) -> None:
+        if self.alerts is not None:
+            await self.alerts.async_shutdown()
         if self._ws_task:
             self._ws_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -86,6 +89,8 @@ class BosmaCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             raise ConfigEntryAuthFailed(str(err)) from err
         except BosmaConnectionError as err:
             raise UpdateFailed(str(err)) from err
+        if self.alerts is not None:
+            await self.alerts.async_reconcile()
         return self.data
 
     # ---- availability ----
@@ -101,6 +106,8 @@ class BosmaCoordinator(DataUpdateCoordinator[dict[str, dict]]):
     def _apply(self, pid: str, nd: Any, source: str, observed: float) -> None:
         if pid not in self._by_pid or not isinstance(nd, dict):
             return
+        if self.alerts is not None:
+            self.alerts.observe(pid, nd.get("doorStatus"), observed)
         raw = nd.get("lockStatus")
         if str(raw) not in ("0", "1"):
             if raw not in (None, ""):
@@ -248,5 +255,9 @@ class BosmaCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         if obj.get("action") != "notification/data":
             return
         data = (obj.get("respData") or {}).get("data") or {}
+        if not isinstance(data, dict):
+            return
+        if self.alerts is not None:
+            self.alerts.push(data.get("devicePid"))
         if data.get("notifyType") == "DEVICE_SHADOW":
             self._apply(data.get("devicePid"), data.get("notifyData"), source="push", observed=time.time())

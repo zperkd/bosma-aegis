@@ -18,6 +18,16 @@ CONTROL_READ_ONLY = "read_only"
 CONF_IFTTT_KEY = "ifttt_key"          # the user's IFTTT Webhooks key (enables control when set)
 CONF_CONTROL_EVENTS = "control_events"  # resolved {devicePid: {"lock": <event>, "unlock": <event>}}
 
+# Opt-in security notifications (no change to lock settings or siren).
+CONF_ALERT_BREAK_IN = "alert_break_in"
+CONF_ALERT_DOOR_AJAR = "alert_door_ajar"
+CONF_ALERT_AJAR_DELAY = "alert_ajar_delay"
+CONF_ALERT_PERSISTENT = "alert_persistent"
+CONF_ALERT_NOTIFY_SERVICE = "alert_notify_service"
+DEFAULT_AJAR_DELAY = 120
+ALERT_COOLDOWN = 60
+EVENT_ALERT = "bosma_aegis_alert"
+
 DEFAULT_SCAN_INTERVAL = 60  # seconds between REST reconciliation polls (the websocket gives instant pushes)
 
 # IFTTT Maker webhook. Firing <event> runs the user's applet, whose "Then" is Bosma's own Lock/Unlock action.

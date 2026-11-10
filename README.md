@@ -1,22 +1,22 @@
 # Bosma Aegis for Home Assistant
 
 A Home Assistant integration that brings your **Bosma Aegis smart lock(s)** into HA with **instant updates** and
-**rich activity** — lock/unlock state, battery, door contact, jam, and *how* each change happened (keypad, app,
-fingerprint, auto‑lock, by hand) with *who* did it.
+**rich activity** â€” lock/unlock state, battery, door contact, jam, and *how* each change happened (keypad, app,
+fingerprint, autoâ€‘lock, by hand) with *who* did it.
 
-It runs **entirely inside Home Assistant** — no separate bridge, service, or add‑on — and talks to the Bosma cloud the
+It runs **entirely inside Home Assistant** â€” no separate bridge, service, or addâ€‘on â€” and talks to the Bosma cloud the
 same way the Bosma app does (a persistent websocket for instant pushes, plus a periodic REST reconcile).
 
 **Native lock control is included in v1.0.3.** Lock and unlock through Bosma's authenticated cloud API,
 with encrypted challenge-response and confirmation from the actual reported lock state. No IFTTT subscription,
 phone, Bluetooth adapter or separate bridge is needed. The Bosma gateway and internet are required.
-Choose **Read only** under Configure → Lock control to disable commands. Existing IFTTT settings remain
+Choose **Read only** under Configure â†’ Lock control to disable commands. Existing IFTTT settings remain
 available under the explicit **IFTTT (legacy)** option; native failures never trigger an IFTTT command.
 
 > **Native control is enabled by default, including on upgrade from a read-only version.** Each lock gets a
 > `lock.<name>` entity that can physically lock and unlock the door. Home Assistant users, integrations and
 > automations with permission to operate that entity can send these commands. For state and activity only,
-> choose **Configure → Lock control → Read only** after setup.
+> choose **Configure â†’ Lock control â†’ Read only** after setup.
 
 ---
 
@@ -38,7 +38,7 @@ Plus a Home Assistant **event** on every live, correlated change:
 ```yaml
 event_type: bosma_aegis_activity
 data:
-  device_pid: "0123…"
+  device_pid: "0123â€¦"
   name: "Garage Door"
   status: "locked"          # or "unlocked" / "jammed"
   locked: true
@@ -47,11 +47,11 @@ data:
   who: "Alex"
   person: true              # True only on a CONFIDENT human action; None if unconfirmed; False if automatic
   correlated: true
-  event_id: "0123…:1794187601"
+  event_id: "0123â€¦:1794187601"
 ```
 
-Use the event to drive automations that need to know a **person** acted — e.g. "turn the porch light off when someone
-locks the front door, but ignore the auto‑lock." See the examples in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#using-the-activity-event).
+Use the event to drive automations that need to know a **person** acted â€” e.g. "turn the porch light off when someone
+locks the front door, but ignore the autoâ€‘lock." See the examples in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#using-the-activity-event).
 
 ---
 
@@ -59,15 +59,15 @@ locks the front door, but ignore the auto‑lock." See the examples in [docs/ARC
 
 ### 1. Add the repository to the Marketplace
 
-Home Assistant **2026.11+** ships the built‑in **Marketplace** (Settings → **Marketplace**; it replaced HACS).
+Home Assistant **2026.11+** ships the builtâ€‘in **Marketplace** (Settings â†’ **Marketplace**; it replaced HACS).
 
-1. **Settings → Marketplace**.
-2. Top‑right menu (⋮) → **Custom repositories**.
+1. **Settings â†’ Marketplace**.
+2. Topâ€‘right menu (â‹®) â†’ **Custom repositories**.
 3. Add `https://github.com/zperkd/bosma-aegis` with category **Integration**.
 4. Find **Bosma Aegis** in the list and **Download**.
-5. **Restart Home Assistant** (Settings → System → Restart).
+5. **Restart Home Assistant** (Settings â†’ System â†’ Restart).
 
-> On older setups still using HACS, the same steps work (HACS → ⋮ → Custom repositories → Integration).
+> On older setups still using HACS, the same steps work (HACS â†’ â‹® â†’ Custom repositories â†’ Integration).
 
 *Manual install (no Marketplace):* copy `custom_components/bosma_aegis/` into your HA `config/custom_components/`
 folder and restart.
@@ -78,25 +78,44 @@ folder and restart.
 your phone (or another integration/bridge), they'll fight over the session. So:
 
 1. In the Bosma app, create a **second Bosma account** for Home Assistant.
-2. **Share your lock(s)** from your main account to that new account (Bosma app → the lock → Share).
+2. **Share your lock(s)** from your main account to that new account (Bosma app â†’ the lock â†’ Share).
 3. Use that dedicated account in the step below.
 
 (You *can* use your main account, but then the Bosma app on your phone will keep getting logged out.)
 
 ### 3. Add the integration
 
-1. **Settings → Devices & services → Add integration → "Bosma Aegis"**.
+1. **Settings â†’ Devices & services â†’ Add integration â†’ "Bosma Aegis"**.
 2. Sign in with the **Bosma account** email + password.
-3. **New‑device verification:** the first time a given account signs in from Home Assistant, Bosma emails a one‑time
+3. **Newâ€‘device verification:** the first time a given account signs in from Home Assistant, Bosma emails a oneâ€‘time
    **verification code** (its "signing in from another device" security). The integration shows a **code entry**
-   step — enter the code from the email to finish. (Subsequent restarts don't ask again.)
+   step â€” enter the code from the email to finish. (Subsequent restarts don't ask again.)
 4. Your locks are discovered automatically; their entities appear under a device each.
 
-That's it — the lock states update **instantly** when anything changes, and reconcile every 60 s as a safety net.
+That's it â€” the lock states update **instantly** when anything changes, and reconcile every 60 s as a safety net.
 
-**Options** (Settings → the integration → Configure):
-- **Polling** — the reconciliation **poll interval** (30–900 s; default 60).
-- **Lock control** — choose native Bosma cloud (default), Read only, or IFTTT (legacy). Existing entity IDs are preserved.
+**Options** (Settings â†’ the integration â†’ Configure):
+- **Polling** â€” the reconciliation **poll interval** (30â€“900 s; default 60).
+- **Lock control** â€” choose native Bosma cloud (default), Read only, or IFTTT (legacy). Existing entity IDs are preserved.
+
+---
+
+## Door security alerts (v1.0.4)
+
+Open **Configure → Alerts** to enable **Potential break-in** and/or **Door left ajar** alerts. Both are off by default.
+Choose persistent Home Assistant notifications, an existing phone/notify service, or both. The door-open delay is
+configurable from 10 to 3600 seconds (default 120). A door-ajar notification clears in HA when the door closes.
+
+Break-in warnings use Bosma's impact / potential door-breaking event (activity code 64), not normal unlocking or a
+jam. Enable break-in detection in the Bosma app for the lock to produce these events. A reported impact is a
+potential attempt, not proof of intrusion. Door-ajar alerts use Bosma's event 68 and the contact-open timer; the
+integration confirms a fresh door contact reading before sending a timer alert. Historical alarms are not replayed
+on startup; repeated impacts are limited to one notification per lock per minute, and an open door alerts once per
+continuous opening. Pushes prompt alarm checks, with the normal reconciliation poll as a fallback.
+
+These options do not enable the lock's siren, change Bosma alarm sensitivity, or lock/unlock a door. They require
+cloud connectivity and a lock/gateway that reports the corresponding alarms or door contact. The
+`bosma_aegis_alert` event can also drive your own automations (`alert_type`: `break_in` or `door_ajar`).
 
 ---
 
@@ -104,27 +123,27 @@ That's it — the lock states update **instantly** when anything changes, and re
 
 - On setup it logs into the Bosma cloud and **discovers your locks**.
 - A background **websocket** subscribes to your locks and receives `DEVICE_SHADOW` pushes the instant anything
-  changes (sub‑second).
-- A periodic **REST poll** reconciles state as a backstop, with **observation‑time ordering** so a slow poll can
+  changes (subâ€‘second).
+- A periodic **REST poll** reconciles state as a backstop, with **observationâ€‘time ordering** so a slow poll can
   never overwrite a newer push.
-- On a live change it reads the **activity log** and attributes *how/who* — and marks `person: true` **only** when it
+- On a live change it reads the **activity log** and attributes *how/who* â€” and marks `person: true` **only** when it
   can *confidently* correlate a human action to that exact transition (a tight time window); otherwise the activity is
-  shown as history with `person: null`, so an ambiguous row never triggers a person‑gated automation.
+  shown as history with `person: null`, so an ambiguous row never triggers a personâ€‘gated automation.
 - Entities go **unavailable** if neither the websocket nor the poll has seen a lock for ~11 minutes (a dead cloud
   link surfaces instead of showing stale state).
 
-The full design — ordering, attribution confidence, reconnection, availability — is in
+The full design â€” ordering, attribution confidence, reconnection, availability â€” is in
 **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ---
 
 ## Troubleshooting
 
-- **"No Bosma locks were found"** — the account signed in, but discovery returned no lock devices. Make sure the
-  account owns/was shared the lock(s). Discovery is the most account‑specific part; open an issue with debug logs
-  (`logger:` → `custom_components.bosma_aegis: debug`) and the device‑list shape can be adjusted.
-- **Entities "unavailable"** — the cloud link is down (check internet / Bosma outage). It recovers automatically.
-- **Re‑authentication prompt** — your Bosma password changed; re‑enter it when HA asks.
+- **"No Bosma locks were found"** â€” the account signed in, but discovery returned no lock devices. Make sure the
+  account owns/was shared the lock(s). Discovery is the most accountâ€‘specific part; open an issue with debug logs
+  (`logger:` â†’ `custom_components.bosma_aegis: debug`) and the deviceâ€‘list shape can be adjusted.
+- **Entities "unavailable"** â€” the cloud link is down (check internet / Bosma outage). It recovers automatically.
+- **Reâ€‘authentication prompt** â€” your Bosma password changed; reâ€‘enter it when HA asks.
 
 Enable debug logging:
 
@@ -156,10 +175,10 @@ logger:
 Install v1.0.3 and restart Home Assistant. Lock entities appear automatically and existing lock entity IDs remain
 unchanged. The integration refreshes gateway metadata during setup; no re-pairing or phone is required.
 
-**Heads‑up:** native control becomes the default, so if you were running read‑only, upgrading gives every lock a
-`lock.<name>` entity that can **unlock the door** — with no extra opt‑in. If that's not what you want, set
-**Configure → Lock control → Read only** after the upgrade. To keep using IFTTT, select **IFTTT (legacy)** there.
+**Headsâ€‘up:** native control becomes the default, so if you were running readâ€‘only, upgrading gives every lock a
+`lock.<name>` entity that can **unlock the door** â€” with no extra optâ€‘in. If that's not what you want, set
+**Configure â†’ Lock control â†’ Read only** after the upgrade. To keep using IFTTT, select **IFTTT (legacy)** there.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT â€” see [LICENSE](LICENSE).

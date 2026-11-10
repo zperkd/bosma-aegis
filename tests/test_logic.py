@@ -88,6 +88,7 @@ def make():
     c._last_ev_ts = {}
     c._ws_task = None
     c._ws_connected = False
+    c.alerts = None
     c.data = {PID: {"status": None, "battery": None, "door": None, "observed_at": None, "activity": None}}
     return c
 

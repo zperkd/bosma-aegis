@@ -42,7 +42,8 @@
         "title": "Bosma Aegis options",
         "menu_options": {
           "settings": "Polling",
-          "control": "Lock control"
+          "control": "Lock control",
+          "alerts": "Alerts"
         }
       },
       "settings": {
@@ -64,7 +65,22 @@
         "data": {
           "ifttt_key": "IFTTT Webhooks key"
         }
+      },
+      "alerts": {
+        "title": "Door security alerts",
+        "description": "Choose Home Assistant notifications, an existing phone/notify service, or both. Break-in alerts use Bosma impact alarms; enable break-in detection in the Bosma app. Door-ajar alerts use device alarms and a configurable open-door timer. These options do not change the lock siren or operate a lock.",
+        "data": {
+          "alert_break_in": "Potential break-in alerts",
+          "alert_door_ajar": "Door left ajar alerts",
+          "alert_ajar_delay": "Door-open delay (seconds)",
+          "alert_persistent": "Home Assistant notifications",
+          "alert_notify_service": "Phone / notify service (optional)"
+        }
       }
+    },
+    "error": {
+      "no_alert_destination": "Choose Home Assistant notifications or a phone/notify service.",
+      "notify_unavailable": "That notification service is unavailable. Choose an available service."
     }
   },
   "entity": {

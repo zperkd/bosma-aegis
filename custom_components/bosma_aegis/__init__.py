@@ -31,6 +31,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     scan = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
     coordinator = BosmaCoordinator(hass, entry, api, devices, scan)
 
+    from .alerts import BosmaAlerts
+
+    coordinator.alerts = BosmaAlerts(hass, entry, coordinator)
     await coordinator.async_config_entry_first_refresh()
     coordinator.start()
 
