@@ -107,6 +107,27 @@ class ControlTests(unittest.IsolatedAsyncioTestCase):
         api,s=self.make([{'code':'SECRET','msg':'SECRET'}])
         with self.assertRaises(BosmaConnectionError) as caught:await api.async_control(DEVICE,unlock=True)
         self.assertNotIn('SECRET',str(caught.exception))
+    async def test_http_error_traceback_never_chains_token_url(self):
+        import aiohttp
+        import traceback
+        secret='synthetic-private-token'
+        class FailedResponse(Response):
+            def raise_for_status(self):
+                raise aiohttp.ClientResponseError(
+                    request_info=types.SimpleNamespace(real_url='https://example.invalid/?token='+secret),
+                    history=(),status=503,message='Service unavailable')
+        api,session=self.make([FailedResponse({})])
+        session.get=session.post
+        try:
+            await api.async_get_shadow(DEVICE['deviceId'])
+        except BosmaConnectionError as error:
+            rendered=''.join(traceback.format_exception(error))
+            self.assertEqual(str(error),'HTTP 503')
+            self.assertTrue(error.__suppress_context__)
+            self.assertNotIn(secret,rendered)
+        else:
+            self.fail('Expected sanitized HTTP error')
+
     async def test_device_discovery_keeps_app_remote_identifier(self):
         api,s=self.make([])
         async def get(base,path,params):
