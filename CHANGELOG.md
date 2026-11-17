@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.5 - 2026-11-16
+
+### Readable listing in Marketplace and HACS
+
+Documentation-only release. Marketplace and HACS show the README from the latest release, and the v1.0.4 release still carried an older README with garbled punctuation. This release ships the corrected README so the listing reads properly.
+
+No changes to lock control, alerts, entities or settings. Updating from v1.0.4 is optional.
+
 ## 1.0.4 - 2026-11-09
 
 ### Door security alerts, configured in the UI
